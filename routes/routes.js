@@ -5,7 +5,7 @@ const path = require('path');
 const router = express.Router();
 
 const User = require('../models/User.js');
-
+const CarbonFootprint = require('../models/CarbonFootprint.js');
 
 // Authentication Middleware
 const auth = (req, res, next) => {
