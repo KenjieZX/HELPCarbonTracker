@@ -98,7 +98,17 @@ router.post('/login', async (req, res) => {
 
 
 
-// Upload content
+// Historical tracking endpoint
+router.get("/history", auth, async (req, res) => {
+    try {
+        const activities = await CarbonFootprint.find({ userId: req.user.id });
+        res.json(activities);
+    } catch (err) {
+        res.status(500).json({ message: 'Error fetching history', error: err });
+    }
+});
+
+// Upload educational content
 router.post('/upload-content', auth, async (req, res) => {
     const { title, text } = req.body;
 
