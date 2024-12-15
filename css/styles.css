@@ -1,0 +1,26 @@
+.darkgreen{
+    background-color: #1F4529;
+}
+
+.bgwhite{
+    background-color: #E8ECD7;
+}
+
+.bg-green{
+    background-color: #47663B;
+    border-radius: 5px;
+}
+
+.bg-cream{
+    background-color: #EED3B1;
+}
+
+footer {
+    position: static;
+    left: 0;
+    bottom: 0;
+    width: 100%;
+    background-color: red;
+    color: white;
+    text-align: center;
+  }
