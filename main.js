@@ -2,7 +2,6 @@ const dotenv = require('dotenv');
 const express = require("express");
 const mongoose = require("mongoose");
 const path = require("path");
-// const jwt = require('jsonwebtoken');
 
 const parser = require('body-parser');
 const cors = require('cors');
@@ -32,7 +31,6 @@ app.use("", require('./routes/routes'));
 
 function logout() {
     localStorage.removeItem('authToken'); // Clear token
-    // alert('Logout success. Redirecting to homepage');
     window.location.href = '/'; // Redirect to login
 }
 
