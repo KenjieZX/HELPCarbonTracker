@@ -98,6 +98,52 @@ router.post('/login', async (req, res) => {
 
 
 
+// Upload content
+router.post('/upload-content', auth, async (req, res) => {
+    const { title, text } = req.body;
+
+    if (!req.user || req.user.role !== 'admin') {
+        return res.status(403).json({ message: 'You are not authorized to perform this action.' });
+    }
+
+    if (!title || !text) {
+        return res.status(400).json({ message: 'Title and content are required.' });
+    }
+
+    try {
+        const newContent = new Educational({ title, text });
+        await newContent.save();
+        res.status(201).json({ message: 'Content uploaded successfully!', content: newContent });
+    } catch (err) {
+        console.error('Error saving content:', err);
+        res.status(500).json({ message: 'Failed to upload content', error: err.message });
+    }
+});
+
+// Educational content view
+router.get('/educational-content', auth, async (req, res) => {
+    try {
+        const page = parseInt(req.query.page) || 1; // Current page
+        const limit = 5; // Entries per page
+        const skip = (page - 1) * limit;
+
+        const content = await Educational.find()
+            // Sort by newest first
+            .sort({ createdAt: -1 }) 
+            .skip(skip)
+            .limit(limit)
+            .select('title text createdAt');
+
+        const totalCount = await Educational.countDocuments();
+        const totalPages = Math.ceil(totalCount / limit);
+
+        res.json({ content, totalPages, currentPage: page });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to fetch educational content.' });
+    }
+});
+
 router.get("/main", auth, (req, res) => {
     res.sendFile(path.join(__dirname, '../main.html'));
 });
