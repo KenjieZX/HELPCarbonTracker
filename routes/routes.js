@@ -5,6 +5,7 @@ const path = require('path');
 const router = express.Router();
 
 const User = require('../models/User.js');
+const Educational = require('../models/Education.js');
 const CarbonFootprint = require('../models/CarbonFootprint.js');
 
 // Authentication Middleware
