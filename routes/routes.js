@@ -96,7 +96,113 @@ router.post('/login', async (req, res) => {
 
 });
 
+// Show recent activities in profile section
+router.get('/profile', auth, async (req, res) => {
+    try {
+        const userId = req.user.id;
 
+        // Fetch user profile data
+        const user = await User.findById(userId).select('-password');
+        if (!user) return res.status(404).json({ error: 'User not found.' });
+
+        // Fetch recent activities (last 5 activities, sorted by date)
+        const recentActivities = await CarbonFootprint.find({ userId: req.user.id })
+            .sort({ date: -1 })
+            .limit(5);
+
+        res.json({
+            username: user.username,
+            activities: recentActivities.map(activity => ({
+                transportType: activity.transportMode,
+                transportDistance: activity.transportDistance,
+                date: activity.date,
+                dietary: activity.diet,
+                electricUsage: activity.electricityUsage,
+                carbonImpact: activity.carbonFootprint
+
+            }))
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Server error.' });
+    }
+});
+
+// Update profile
+router.post('/update-profile', auth, async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const { username, password } = req.body;
+
+        // Fetch user from database
+        const user = await User.findById(userId);
+        if (!user) return res.status(404).json({ error: 'User not found.' });
+
+        // Update username if provided
+        if (username) {
+            user.username = username;
+        }
+
+        // Update password if provided
+        if (password) {
+            const salt = await bcrypt.genSalt(10);
+            user.password = await bcrypt.hash(password, salt);
+        }
+
+        // Save updated user to database
+        await user.save();
+
+        res.json({ message: 'Profile updated successfully.' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Server error.' });
+    }
+});
+
+// Endpoint to calculate user carbon footprint
+router.post('/calculate-carbon', auth, (req, res) => {
+    try {
+        const { transportDistance, transportMode, electricityUsage, diet } = req.body;
+
+        let carbonFootprint = 0;
+        const transportEmissions = { car: 0.12, bus: 0.05, train: 0.03, bike: 0.0 };
+        const electricityEmissionFactor = 0.5;
+        const dietEmissions = { vegan: 2.0, vegetarian: 3.0, omnivore: 7.0 };
+
+        carbonFootprint += (transportDistance || 0) * (transportEmissions[transportMode] || 0);
+        carbonFootprint += (electricityUsage || 0) * electricityEmissionFactor;
+        carbonFootprint += dietEmissions[diet] || 0;
+
+        res.json({ carbonFootprint });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to calculate carbon footprint.' });
+    }
+});
+
+// Endpoint to save carbon footprint history
+router.post('/save-carbon-history', auth, async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const { transportDistance, transportMode, electricityUsage, diet, carbonFootprint } = req.body;
+
+        const historyEntry = new CarbonFootprint({
+            userId,
+            transportDistance,
+            transportMode,
+            electricityUsage,
+            diet,
+            carbonFootprint,
+            date: req.body.date,
+        });
+
+        await historyEntry.save();
+        res.json({ message: 'History saved successfully.' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to save history.' });
+    }
+});
 
 // Historical tracking endpoint
 router.get("/history", auth, async (req, res) => {
