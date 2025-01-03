@@ -166,9 +166,9 @@ router.post('/calculate-carbon', auth, (req, res) => {
         const { transportDistance, transportMode, electricityUsage, diet } = req.body;
 
         let carbonFootprint = 0;
-        const transportEmissions = { car: 0.12, bus: 0.05, train: 0.03, bike: 0.0 };
-        const electricityEmissionFactor = 0.5;
-        const dietEmissions = { vegan: 2.0, vegetarian: 3.0, omnivore: 7.0 };
+        const transportEmissions = { car: 0.15, bus: 0.08, train: 0.045, bike: 0.0 };
+        const electricityEmissionFactor = 0.65; // kg CO2 per kWh
+        const dietEmissions = { vegan: 1.0, vegetarian: 2.0, omnivore: 6.0 };
 
         carbonFootprint += (transportDistance || 0) * (transportEmissions[transportMode] || 0);
         carbonFootprint += (electricityUsage || 0) * electricityEmissionFactor;
@@ -198,12 +198,142 @@ router.post('/save-carbon-history', auth, async (req, res) => {
         });
 
         await historyEntry.save();
+
+        // Update the user's lifetimeCarbonFootprint
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ message: 'User not found.' });
+        }
+
+        const transportEmissions = { car: 0.15, bus: 0.08, train: 0.045, bike: 0.0 };
+
+        // Update transport data
+        if (transportMode && user.lifetimeCarbonFootprint.breakdown.transport[transportMode]) {
+            const transportEmissionFinal = (transportDistance || 0) * (transportEmissions[transportMode] || 0);
+            user.lifetimeCarbonFootprint.breakdown.transport[transportMode].value += transportEmissionFinal;
+            user.lifetimeCarbonFootprint.breakdown.transport[transportMode].count += 1;
+        }
+
+        // Update electricity data
+        if (electricityUsage) {
+            user.lifetimeCarbonFootprint.breakdown.electricity.value += electricityUsage * 0.65;
+            user.lifetimeCarbonFootprint.breakdown.electricity.count += 1;
+        }
+
+        // Update diet data
+        if (diet) {
+            const dietEmissions = { vegan: 1.0, vegetarian: 2.0, omnivore: 6.0 };
+            const dietEmission = dietEmissions[diet] || 0;
+            user.lifetimeCarbonFootprint.breakdown.diet.value += dietEmission;
+            user.lifetimeCarbonFootprint.breakdown.diet.count += 1;
+        }
+
+        // Update the total carbon footprint
+        user.lifetimeCarbonFootprint.total += carbonFootprint;
+
+        // Save the updated user data
+        await user.save();
+
+
         res.json({ message: 'History saved successfully.' });
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: 'Failed to save history.' });
     }
 });
+
+
+// Endpoint to show recommendation based on user carbon footprint
+router.get('/recommendations', auth, async (req, res) => {
+    try {
+        const userId = req.user.id;
+
+        // Fetch the user's lifetime carbon footprint
+        const user = await User.findById(userId, 'lifetimeCarbonFootprint');
+
+        if (!user || !user.lifetimeCarbonFootprint) {
+            return res.status(404).json({ message: 'No carbon footprint data found for recommendations.' });
+        }
+
+        const { breakdown } = user.lifetimeCarbonFootprint;
+
+        // Define thresholds (these could be dynamic or based on external data)
+        const thresholds = {
+            car: 5,  // Average CO2 for car use
+            bus: 3,  // Average CO2 for bus use
+            bike: 0.5,  // Average CO2 for bike
+            train: 2,  // Average CO2 for train
+            electricity: 10,
+            diet: 20,
+        };
+
+        const recommendations = [];
+
+        // Transport-specific recommendations
+        if (breakdown.transport) {
+            const transportModes = breakdown.transport;
+            let totalTransportEmissions = 0;
+            let totalTransportCount = 0;
+
+            Object.keys(transportModes).forEach((mode) => {
+                const { value = 0, count = 0 } = transportModes[mode];
+                const average = count > 0 ? value / count : 0;
+
+                totalTransportEmissions += value;
+                totalTransportCount += count;
+
+                // Recommendation based on individual transport mode
+                if (average > thresholds[mode]) {
+                    recommendations.push(
+                        `Your average ${mode} usage (${average.toFixed(2)} kg CO₂) is above normal. Consider reducing usage or switching to a more eco-friendly mode.`
+                    );
+                } else if (count === 0) {
+                    recommendations.push(`You haven't used ${mode} yet. Consider trying it for an eco-friendly alternative.`);
+                } else {
+                    recommendations.push(`Your ${mode} usage (${average.toFixed(2)} kg CO₂) is within an acceptable range. Keep it up!`);
+                }
+            });
+
+            // Calculate overall transport average and provide additional advice
+            const overallTransportAverage = totalTransportCount > 0 ? totalTransportEmissions / totalTransportCount : 0;
+
+            if (overallTransportAverage > Math.max(...Object.values(thresholds).slice(0, 4))) {
+                recommendations.push(
+                    `Your overall transport emissions (${overallTransportAverage.toFixed(2)} kg CO₂ per trip) are high. Explore carpooling, public transport, or biking to reduce emissions.`
+                );
+            } else {
+                recommendations.push("Your overall transport emissions are within a sustainable range. Great job!");
+            }
+        }
+
+        // Helper function for general recommendations for other categories (electricity, diet)
+        const calculateCategoryRecommendations = (category) => {
+            const { value = 0, count = 0 } = breakdown[category] || {};
+            const average = count > 0 ? value / count : 0;
+
+            if (average > thresholds[category]) {
+                return `Your average ${category} usage (${average.toFixed(2)} kg CO₂) is above normal. Consider reducing usage.`;
+            } else {
+                return `Your ${category} usage (${average.toFixed(2)} kg CO₂) is within the acceptable range. Keep it up!`;
+            }
+        };
+
+        // Adding electricity and diet recommendations
+        recommendations.push(calculateCategoryRecommendations('electricity'));
+        recommendations.push(calculateCategoryRecommendations('diet'));
+
+        // If no recommendations, provide a message
+        if (recommendations.length === 0) {
+            recommendations.push("Great job! Your carbon footprint is already low. Keep up the good work!");
+        }
+
+        res.json({ recommendations });
+    } catch (error) {
+        console.error('Error generating recommendations:', error);
+        res.status(500).json({ message: 'An error occurred while generating recommendations.' });
+    }
+});
+
 
 // Historical tracking endpoint
 router.get("/history", auth, async (req, res) => {
