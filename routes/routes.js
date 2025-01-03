@@ -261,6 +261,31 @@ router.get('/educational-content', auth, async (req, res) => {
     }
 });
 
+
+// Lifetime carbon footprint
+router.get('/lifetime-carbon', auth, async (req, res) => {
+    try {
+        const userId = req.user.id;
+
+        // Fetch the user's data from the users collection
+        const user = await User.findById(userId, 'lifetimeCarbonFootprint');
+
+        if (!user || !user.lifetimeCarbonFootprint) {
+            return res.status(404).json({ message: 'No lifetime carbon footprint data found.' });
+        }
+
+        const { total, breakdown } = user.lifetimeCarbonFootprint;
+
+        res.json({
+            totalCarbonFootprint: total || 0,
+            breakdown,
+        });
+    } catch (error) {
+        console.error('Error fetching lifetime carbon data:', error);
+        res.status(500).json({ message: 'An error occurred while fetching the data.' });
+    }
+});
+
 router.get("/main", auth, (req, res) => {
     res.sendFile(path.join(__dirname, '../main.html'));
 });
