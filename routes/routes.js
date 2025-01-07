@@ -335,6 +335,66 @@ router.get('/recommendations', auth, async (req, res) => {
 });
 
 
+// Search users
+router.get("/users/search", async (req, res) => {
+    try {
+        const query = req.query.q;
+        const users = await User.find({ username: { $regex: query, $options: "i" } }).select("username");
+        res.json(users);
+    } catch (err) {
+        res.status(500).json({ error: "Error searching users." });
+    }
+});
+
+// Get friend list
+router.get('/friends', auth, async (req, res) => {
+    try {
+        const user = await User.findById(req.user.id).populate('friends', 'username');
+
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        res.status(200).json(user.friends);
+    } catch (error) {
+        console.error("Error fetching friends:", error);
+        res.status(500).json({ error: "Internal server error" });
+    }
+});
+
+// Add friend
+router.post('/addfriend', auth, async (req, res) => {
+
+    try {
+        const user = await User.findById(req.user.id);
+        // console.log("Found user:", user); // Log the found user
+        
+        if (!user) {
+            return res.status(404).json({ error: "User not found." });
+        }
+
+        const friend = await User.findById(req.body.friendId);
+        // console.log("Found friend:", friend); // Log the found friend
+        
+        if (!friend) {
+            return res.status(404).json({ error: "Friend not found." });
+        }
+
+        if (user.friends.includes(req.body.friendId)) {
+            return res.status(400).json({ error: "Already friends." });
+        }
+
+        user.friends.push(req.body.friendId);
+        await user.save();
+
+        res.status(200).json({ message: "Friend added successfully." });
+    } catch (error) {
+        console.error("Error adding friend:", error);
+        res.status(500).json({ error: "Internal server error." });
+    }
+});
+
+
 // Historical tracking endpoint
 router.get("/history", auth, async (req, res) => {
     try {
