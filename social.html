@@ -151,7 +151,11 @@
     
         async function searchUsers() {
             const query = document.getElementById("search-input").value;
-            if (!query) return;
+            if (!query) {
+                alert("No users found");
+                return;
+            }
+            else {
     
             try {
                 const response = await fetch(`${API_URL}/users/search?q=${query}`, {
@@ -161,6 +165,11 @@
                 const results = await response.json();
                 console.log("Search Results:", results);
                 const searchResults = document.getElementById("search-results");
+                if (results.length == 0){ 
+                    alert("No users found");
+                    return;
+                }
+
                 searchResults.innerHTML = results.map(user => `                    
                     <div class="card text-center mb-3" style="width: 10rem;">
                         <div class="card-body">
@@ -175,6 +184,7 @@
                 `).join("");
             } catch (error) {
                 console.error("Error searching users:", error);
+            }
             }
         }
     
