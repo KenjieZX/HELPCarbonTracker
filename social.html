@@ -78,19 +78,137 @@
     </nav>
 
     <!-- Main Content -->
-    <div class="container mt-5">
-        Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. 
-        Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. 
-        Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. 
-        Excepteur sint occaecat cupidatat non proident, 
-        sunt in culpa qui officia deserunt mollit anim id est laborum.
+    <div class="container mt-5" id="social-system">
+        <!-- User Search -->
+        <div id="search-section" class="col-md-5">
+            <h2>Find Users</h2>
+            <div class="input-group mb-3">
+                <input type="text" 
+                    id="search-input" 
+                    class="form-control" 
+                    placeholder="Search for users..." 
+                    aria-describedby="button-addon2">
+                <button 
+                    class="btn btn-outline-success" 
+                    type="button" 
+                    id="button-addon2"
+                    onclick="searchUsers()">Button</button>
+            </div>
+
+            <div id="search-results" class="mt-3"></div>
+        </div>
+        
+        <!-- Friend List -->
+        <div id="friends-section">
+            <h2>Your Friends</h2>
+            <ul id="friends-list" class="list-group col-md-5"></ul>
+        </div>
     </div>
+
     <br>
+
     <footer class="bg-light text-center text-muted py-3 mt-5">
-        <p>&copy; 2024 Carbon Footprint System</p>
+        <p>© 2024 HELP Carbon Tracker. All Rights Reserved.</p>
     </footer>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    
     <script src="main.js"></script>
+
+    <script>
+        const API_URL = "http://localhost:5000";
+        const token = localStorage.getItem('authToken');
+    
+        if (!token) {
+            alert('You are not logged in. Redirecting to login page.');
+            window.location.href = '/login.html';
+        } else {
+            console.log("Auth Token:", token);
+        }
+    
+        async function loadFriends() {
+            try {
+                const response = await fetch(`${API_URL}/friends`, {
+                    method: "GET",
+                    headers: { "Authorization": `Bearer ${token}` },
+                });
+    
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error("Error loading friends:", errorText);
+                    return alert("Failed to load friends. Check console for details.");
+                }
+    
+                const friends = await response.json();
+                const friendsList = document.getElementById("friends-list");
+                friendsList.innerHTML = Array.isArray(friends)
+                    ? friends.map(friend => `<li class="list-group-item">${friend.username}</li>`).join("")
+                    : "No friends found";
+            } catch (error) {
+                console.error("Error loading friends:", error);
+            }
+        }
+    
+        async function searchUsers() {
+            const query = document.getElementById("search-input").value;
+            if (!query) return;
+    
+            try {
+                const response = await fetch(`${API_URL}/users/search?q=${query}`, {
+                    method: "GET",
+                    headers: { "Authorization": `Bearer ${token}` },
+                });
+                const results = await response.json();
+                console.log("Search Results:", results);
+                const searchResults = document.getElementById("search-results");
+                searchResults.innerHTML = results.map(user => `                    
+                    <div class="card text-center mb-3" style="width: 10rem;">
+                        <div class="card-body">
+                            <h5 class="card-title">${user.username}</h5>
+                            <button 
+                                onclick="addFriend('${user._id}')" 
+                                class="btn btn-outline-success">
+                                Add Friend
+                            </button>
+                        </div>
+                    </div>
+                `).join("");
+            } catch (error) {
+                console.error("Error searching users:", error);
+            }
+        }
+    
+        async function addFriend(friendId) {
+            try {
+                const response = await fetch(`${API_URL}/addfriend`, {
+                    method: "POST",
+                    headers: { 
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ friendId }),
+                });
+    
+                // Handle server response
+                if (response.ok) {
+                    alert("Friend added successfully!");
+                    loadFriends();
+                } else {
+                    const errorData = await response.json();
+                    console.error("Error response:", errorData);
+                    alert(`Failed to add friend: ${errorData.error}`);
+                }
+            } catch (error) {
+                // Handle unexpected errors
+                console.error("Error adding friend:", error);
+                alert("An unexpected error occurred. Please try again.");
+            }
+        }
+    
+        document.addEventListener("DOMContentLoaded", () => {
+            loadFriends();
+        });
+    </script>
 
 
 </body>
